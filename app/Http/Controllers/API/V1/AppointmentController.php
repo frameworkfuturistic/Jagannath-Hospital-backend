@@ -87,6 +87,7 @@ class AppointmentController extends Controller
             'Pending' => 'nullable|boolean',  // Pending can be updated independently
             'PatientName' => 'nullable|string|max:50',
             'MobileNo' => 'nullable|string|max:10',
+            'TransactionID' => 'nullable|string|max:255',
         ]);
     
         // Update only the fields that are present in the request
