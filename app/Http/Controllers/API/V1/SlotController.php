@@ -220,33 +220,78 @@ class SlotController extends Controller
     }
 
     public function getAllDoctorSlots($doctorId)
-    {
-        // Fetch all slots for the doctor
-        $slots = TimeSlot::where('ConsultantID', $doctorId)
-            ->orderBy('ConsultationDate', 'asc')
-            ->orderBy('SlotTime', 'asc')
-            ->get();
+{
+    // Fetch all slots for the doctor, including appointments
+    $slots = TimeSlot::where('ConsultantID', $doctorId)
+        ->with('appointments') // Include the related appointments
+        ->orderBy('ConsultationDate', 'asc')
+        ->orderBy('SlotTime', 'asc')
+        ->get();
 
-        if ($slots->isEmpty()) {
-            return response()->json(['message' => 'No slots available for this doctor.'], 404);
-        }
-
-        // Group slots by date
-        $groupedSlots = $slots->groupBy('ConsultationDate')->map(function ($slotsForDate) {
-            return $slotsForDate->map(function ($slot) {
-                return [
-                    'SlotID' => $slot->SlotID,
-                    'ConsultationDate' => $slot->ConsultationDate,
-                    'SlotTime' => $slot->SlotTime,
-                    'AvailableSlots' => $slot->AvailableSlots,
-                    'MaxSlots' => $slot->MaxSlots,
-                    'SlotToken' => $slot->SlotToken,
-                    'isBooked' => $slot->isBooked, // Include booking status
-                    'AppointmentID' => $slot->AppointmentID,
-                ];
-            });
-        });
-
-        return response()->json($groupedSlots);
+    if ($slots->isEmpty()) {
+        return response()->json(['message' => 'No slots available for this doctor.'], 404);
     }
+
+    // Group slots by date
+    $groupedSlots = $slots->groupBy('ConsultationDate')->map(function ($slotsForDate) {
+        return $slotsForDate->map(function ($slot) {
+            return [
+                'SlotID' => $slot->SlotID,
+                'ConsultationDate' => $slot->ConsultationDate,
+                'SlotTime' => $slot->SlotTime,
+                'AvailableSlots' => $slot->AvailableSlots,
+                'MaxSlots' => $slot->MaxSlots,
+                'SlotToken' => $slot->SlotToken,
+                'isBooked' => $slot->isBooked, // Include booking status
+                'AppointmentID' => $slot->AppointmentID,
+                'appointments' => $slot->appointments->map(function ($appointment) {
+                    return [
+                        'OPDOnlineAppointmentID' => $appointment->OPDOnlineAppointmentID,
+                        'MRNo' => $appointment->MRNo,
+                        'PatientName' => $appointment->PatientName,
+                        'MobileNo' => $appointment->MobileNo,
+                        'Remarks' => $appointment->Remarks,
+                        'Pending' => $appointment->Pending,
+                        'TransactionID' => $appointment->TransactionID,
+                        'CreatedOn' => $appointment->CreatedOn,
+                    ];
+                }),
+            ];
+        });
+    });
+
+    return response()->json($groupedSlots);
+}
+
+
+    // public function getAllDoctorSlots($doctorId)
+    // {
+    //     // Fetch all slots for the doctor
+    //     $slots = TimeSlot::where('ConsultantID', $doctorId)
+    //         ->orderBy('ConsultationDate', 'asc')
+    //         ->orderBy('SlotTime', 'asc')
+    //         ->get();
+
+    //     if ($slots->isEmpty()) {
+    //         return response()->json(['message' => 'No slots available for this doctor.'], 404);
+    //     }
+
+    //     // Group slots by date
+    //     $groupedSlots = $slots->groupBy('ConsultationDate')->map(function ($slotsForDate) {
+    //         return $slotsForDate->map(function ($slot) {
+    //             return [
+    //                 'SlotID' => $slot->SlotID,
+    //                 'ConsultationDate' => $slot->ConsultationDate,
+    //                 'SlotTime' => $slot->SlotTime,
+    //                 'AvailableSlots' => $slot->AvailableSlots,
+    //                 'MaxSlots' => $slot->MaxSlots,
+    //                 'SlotToken' => $slot->SlotToken,
+    //                 'isBooked' => $slot->isBooked, // Include booking status
+    //                 'AppointmentID' => $slot->AppointmentID,
+    //             ];
+    //         });
+    //     });
+
+    //     return response()->json($groupedSlots);
+    // }
 }
