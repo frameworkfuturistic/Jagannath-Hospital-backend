@@ -202,69 +202,60 @@ class PaymentController extends Controller
         $mrRecord = DB::table('mr_master')->where('MRNo', $mrNo)->first();
 
         if (!$mrRecord) {
-            // Create new MRNo and associated records
             try {
                 Log::info('Attempting to create MRNo: ' . $mrNo);
-                $newMrNoRecord = MrMaster::create([
+                MrMaster::create([
                     'MRNo' => $mrNo,
                     'MRDate' => now(),
                     'PatientName' => $patientName,
                 ]);
                 Log::info('New MRNo record created successfully: ' . $mrNo);
-
-                // Insert new record into opd_registrations table
-                $registrationId = DB::table('opd_registrations')->insertGetId([
-                    'MRNo' => $mrNo,
-                    'RegistrationDate' => now(),
-                    'ConsultationDate' => now(),
-                    'RegistrationFee' => 100,
-                    'Amount' => $amount,
-                    'PaymentMode' => $paymode,
-                    'CreatedBy' => auth()->id() ?? 1,
-                    'CreatedOn' => now(),
-                ]);
-                Log::info('New record created in opd_registrations for MRNo: ' . $mrNo);
-
-                // Insert new record into opd_consultations table
-                DB::table('opd_consultations')->insert([
-                    'RegistrationID' => $registrationId,
-                    'ConsultationDate' => now(),
-                    'ConsultedAt' => now(),
-                    'PatientName' => $patientName,
-                    'CreatedBy' => auth()->id() ?? 1,
-                    'CreatedOn' => now(),
-                ]);
-                Log::info('New record created in opd_consultations for RegistrationID: ' . $registrationId);
             } catch (\Exception $e) {
-                Log::error('Error during MRNo creation: ' . $e->getMessage());
-                return response()->json(['message' => 'Error during MRNo creation: ' . $e->getMessage()], 500);
+                Log::error('Error creating MRNo: ' . $e->getMessage());
+                return response()->json(['message' => 'Error creating MRNo: ' . $e->getMessage()], 500);
             }
-        } else {
-            Log::info('MRNo already exists: ' . $mrNo);
-
-            // Update existing record in opd_registrations table
-            DB::table('opd_registrations')
-                ->where('MRNo', $mrNo)
-                ->update([
-                    'ConsultationDate' => now(),
-                    'Amount' => $amount,
-                    'PaymentMode' => $paymode,
-                    'ModifiedBy' => auth()->id() ?? 1,
-                    'ModifiedOn' => now(),
-                ]);
-            Log::info('opd_registrations updated for existing MRNo: ' . $mrNo);
         }
 
-        // Strictly use update for payment records
+        // Insert a new record into opd_registrations
         try {
-            // Check if the payment record exists
+            Log::info('Attempting to create new opd_registrations for MRNo: ' . $mrNo);
+            $registrationId = DB::table('opd_registrations')->insertGetId([
+                'MRNo' => $mrNo,
+                'RegistrationDate' => now(),
+                'ConsultationDate' => now(),
+                'RegistrationFee' => 100,
+                'Amount' => $amount,
+                'PaymentMode' => $paymode,
+                'CreatedBy' => auth()->id() ?? 1,
+                'CreatedOn' => now(),
+            ]);
+            Log::info('New record created in opd_registrations for MRNo: ' . $mrNo);
+
+            // Insert new record into opd_consultations
+            DB::table('opd_consultations')->insert([
+                'RegistrationID' => $registrationId,
+                'ConsultationDate' => now(),
+                'ConsultedAt' => now(),
+                'PatientName' => $patientName,
+                'CreatedBy' => auth()->id() ?? 1,
+                'CreatedOn' => now(),
+            ]);
+
+            Log::info('New record created in opd_consultations for RegistrationID: ' . $registrationId);
+        } catch (\Exception $e) {
+            Log::error('Error creating records in opd_registrations/opd_consultations: ' . $e->getMessage());
+            return response()->json(['message' => 'Error creating records: ' . $e->getMessage()], 500);
+        }
+
+        // Strictly use update for payment records or insert if not found
+        try {
             $paymentExists = DB::table('payments')
                 ->where('payment_id', $paymentId)
                 ->where('appointment_id', $appointmentId)
                 ->exists();
 
             if ($paymentExists) {
-                // Update the existing payment record
+                // Update existing payment record
                 DB::table('payments')
                     ->where('payment_id', $paymentId)
                     ->where('appointment_id', $appointmentId)
@@ -276,8 +267,17 @@ class PaymentController extends Controller
                     ]);
                 Log::info('Payment record updated successfully for PaymentID: ' . $paymentId);
             } else {
-                Log::error('Payment record not found for PaymentID: ' . $paymentId);
-                return response()->json(['message' => 'Payment record not found. Update failed.'], 404);
+                // Insert new payment record if not found
+                DB::table('payments')->insert([
+                    'payment_id' => $paymentId,
+                    'appointment_id' => $appointmentId,
+                    'amount' => $amount,
+                    'status' => 'captured',
+                    'TransactionID' => $payload['transaction_id'] ?? null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                Log::info('New payment record inserted successfully for PaymentID: ' . $paymentId);
             }
         } catch (\Exception $e) {
             Log::error('Error processing payment: ' . $e->getMessage());
@@ -286,7 +286,6 @@ class PaymentController extends Controller
 
         return response()->json(['message' => 'Payment callback processed successfully']);
     }
-
 
     private function generateMRNo()
     {
