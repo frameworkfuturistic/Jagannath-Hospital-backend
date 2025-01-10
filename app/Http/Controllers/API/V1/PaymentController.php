@@ -72,7 +72,7 @@ class PaymentController extends Controller
                 'order_id' => $razorpayOrder->id,
             ], 201);
         } catch (\Exception $e) {
-            \Log::error('Payment initiation failed: ' . $e->getMessage(), [
+            Log::error('Payment initiation failed: ' . $e->getMessage(), [
                 'request' => $request->all(), // Log the request data
                 'stack_trace' => $e->getTraceAsString() // Log the stack trace
             ]);
