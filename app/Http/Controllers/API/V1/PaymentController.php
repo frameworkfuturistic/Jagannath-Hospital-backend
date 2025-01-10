@@ -215,7 +215,7 @@ class PaymentController extends Controller
         }
 
         // Step 6: Proceed to create MRNo and records only after payment is processed
-        return $this->createMRNoAndRecords($mrNo, $patientName, $amount, $appointmentId);
+        return $this->createMRNoAndRecords($mrNo, $patientName, $amount, $appointmentId, $paymentId);
     }
 
     // Helper function to verify Razorpay webhook signature
@@ -226,7 +226,7 @@ class PaymentController extends Controller
     }
 
     // Helper function to create MRNo and necessary records after payment
-    protected function createMRNoAndRecords($mrNo, $patientName, $amount, $appointmentId)
+    protected function createMRNoAndRecords($mrNo, $patientName, $amount, $appointmentId, $paymentId)
     {
         DB::beginTransaction();
         try {
@@ -275,6 +275,18 @@ class PaymentController extends Controller
 
             Log::info('New record created in opd_consultations for RegistrationID: ' . $registrationId);
 
+            // Step 11: Insert a new payment record
+            DB::table('payments')->insert([
+                'payment_id' => $paymentId,
+                'appointment_id' => $appointmentId,
+                'amount' => $amount,
+                'status' => 'captured',
+                'TransactionID' => $paymentId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            Log::info('New payment record inserted successfully for PaymentID: ' . $paymentId);
+
             DB::commit();
             return response()->json(['message' => 'Payment processed and records created successfully'], 200);
         } catch (\Exception $e) {
@@ -320,7 +332,9 @@ class PaymentController extends Controller
     }
 }
 
-// public function handlePaymentCallback(Request $request)
+
+
+    // public function handlePaymentCallback(Request $request)
     // {
     //     // Retrieve webhook payload and signature
     //     $webhookBody = $request->getContent();
@@ -406,48 +420,25 @@ class PaymentController extends Controller
     //         return response()->json(['message' => 'Error creating records: ' . $e->getMessage()], 500);
     //     }
 
-    //     // Strictly use update for payment records or insert if not found
+    //     // Always insert a new payment record, no matter if it already exists
     //     try {
-    //         $paymentExists = DB::table('payments')
-    //             ->where('payment_id', $paymentId)
-    //             ->where('appointment_id', $appointmentId)
-    //             ->exists();
-
-    //         if ($paymentExists) {
-    //             // Update existing payment record
-    //             DB::table('payments')
-    //                 ->where('payment_id', $paymentId)
-    //                 ->where('appointment_id', $appointmentId)
-    //                 ->update([
-    //                     'amount' => $amount,
-    //                     'status' => 'captured',
-    //                     'TransactionID' => $payload['transaction_id'] ?? null,
-    //                     'updated_at' => now(),
-    //                 ]);
-    //             Log::info('Payment record updated successfully for PaymentID: ' . $paymentId);
-    //         } else {
-    //             // Insert new payment record if not found
-    //             DB::table('payments')->insert([
-    //                 'payment_id' => $paymentId,
-    //                 'appointment_id' => $appointmentId,
-    //                 'amount' => $amount,
-    //                 'status' => 'captured',
-    //                 'TransactionID' => $payload['transaction_id'] ?? null,
-    //                 'created_at' => now(),
-    //                 'updated_at' => now(),
-    //             ]);
-    //             Log::info('New payment record inserted successfully for PaymentID: ' . $paymentId);
-    //         }
+    //         DB::table('payments')->insert([
+    //             'payment_id' => $paymentId,
+    //             'appointment_id' => $appointmentId,
+    //             'amount' => $amount,
+    //             'status' => 'captured',
+    //             'TransactionID' => $payload['transaction_id'] ?? null,
+    //             'created_at' => now(),
+    //             'updated_at' => now(),
+    //         ]);
+    //         Log::info('New payment record inserted successfully for PaymentID: ' . $paymentId);
     //     } catch (\Exception $e) {
-    //         Log::error('Error processing payment: ' . $e->getMessage());
-    //         return response()->json(['message' => 'Error processing payment: ' . $e->getMessage()], 500);
+    //         Log::error('Error inserting payment record: ' . $e->getMessage());
+    //         return response()->json(['message' => 'Error inserting payment record: ' . $e->getMessage()], 500);
     //     }
 
     //     return response()->json(['message' => 'Payment callback processed successfully']);
     // }
-
-
-
 
     // private function generateMRNo()
     // {

@@ -12,33 +12,42 @@ use Carbon\Carbon;
 
 class DoctorController extends Controller
 {
-    // Fetch doctors based on department
     public function index($departmentId, $consultantId = null)
     {
-        // Start the query by filtering by department ID
-        $query = Consultant::where('DepartmentID', $departmentId)
-            ->with('consultantShift'); // Eager load the consultant shift to get the fee
+        try {
+            // Start the query by filtering by department ID
+            $query = Consultant::where('DepartmentID', $departmentId)
+                ->with('consultantShift'); // Eager load the consultant shift to get the fee
 
-        // Add additional filter if ConsultantID is provided
-        if ($consultantId) {
-            $query->where('ConsultantID', $consultantId);
+            // Add additional filter if ConsultantID is provided
+            if ($consultantId) {
+                $query->where('ConsultantID', $consultantId);
+            }
+
+            // Execute the query
+            $doctors = $query->get();
+
+            // Remove duplicate ConsultantName entries
+            $doctorData = $doctors->unique('ConsultantName')->map(function ($doctor) {
+                return [
+                    'ConsultantID' => $doctor->ConsultantID,
+                    'ConsultantName' => $doctor->ConsultantName,
+                    'Fee' => optional($doctor->consultantShift)->Fee ? number_format(optional($doctor->consultantShift)->Fee, 2) : null,
+                ];
+            });
+
+            // Check if no data is found
+            if ($doctorData->isEmpty()) {
+                return response()->json(['message' => 'No consultants found'], 404);
+            }
+
+            // Reset the keys to return a simple array
+            return response()->json($doctorData->values(), 200);
+        } catch (\Exception $e) {
+            // Handle unexpected errors
+            return response()->json(['error' => 'Something went wrong', 'message' => $e->getMessage()], 500);
         }
-
-        // Execute the query
-        $doctors = $query->get();
-
-        // Remove duplicate ConsultantName entries
-        $doctorData = $doctors->unique('ConsultantName')->map(function ($doctor) {
-            return [
-                'ConsultantID' => $doctor->ConsultantID,
-                'ConsultantName' => $doctor->ConsultantName,
-                'Fee' => optional($doctor->consultantShift)->Fee, // Safely access Fee
-            ];
-        });
-
-        return response()->json($doctorData, 200);
     }
-
 
     public function getAllConsultants()
     {
