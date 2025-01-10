@@ -201,11 +201,12 @@ class PaymentController extends Controller
         $payment = Payment::where('TransactionID', $paymentId)->first();
 
         // If payment status is not 'Completed', update it to 'Completed'
-        if ($payment && $payment->PaymentStatus !== 'Completed') {
+        if ($payment) {
             try {
                 $payment->PaymentStatus = 'Completed';
                 $payment->PaymentDate = now(); // Set the current date and time
                 $payment->save();
+                return $this->createMRNoAndRecords($mrNo, $patientName, $amount, $appointmentId, $paymentId);
 
                 Log::info('Payment marked as completed for PaymentID: ' . $paymentId);
             } catch (\Exception $e) {
@@ -213,9 +214,6 @@ class PaymentController extends Controller
                 return response()->json(['message' => 'Error updating payment status'], 500);
             }
         }
-
-        // Step 6: Proceed to create MRNo and records only after payment is processed
-        return $this->createMRNoAndRecords($mrNo, $patientName, $amount, $appointmentId, $paymentId);
     }
 
     // Helper function to verify Razorpay webhook signature
@@ -274,21 +272,6 @@ class PaymentController extends Controller
             ]);
 
             Log::info('New record created in opd_consultations for RegistrationID: ' . $registrationId);
-
-            // Step 11: Insert a new payment record
-            DB::table('payments')->insert([
-                'payment_id' => $paymentId,
-                'appointment_id' => $appointmentId,
-                'amount' => $amount,
-                'status' => 'captured',
-                'TransactionID' => $paymentId,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            Log::info('New payment record inserted successfully for PaymentID: ' . $paymentId);
-
-            DB::commit();
-            return response()->json(['message' => 'Payment processed and records created successfully'], 200);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error creating records in opd_registrations/opd_consultations: ' . $e->getMessage());
