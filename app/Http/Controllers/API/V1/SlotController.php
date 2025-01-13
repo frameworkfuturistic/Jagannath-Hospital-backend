@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API\V1;
 
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Models\ConsultantShift;
 use App\Models\Shift;
@@ -148,6 +149,7 @@ class SlotController extends Controller
         // Initialize an array to hold the generated slots
         $slots = [];
 
+
         // Loop through each entry in the daily slots array
         foreach ($dailySlots as $dailySlot) {
             $date = Carbon::parse($dailySlot['date']);
@@ -201,7 +203,7 @@ class SlotController extends Controller
                 $currentTime->addMinutes($intervalMinutes);
             }
         }
-
+        // dd($slots);
         // Save slots in the database
         TimeSlot::insert($slots);
 
@@ -294,8 +296,100 @@ class SlotController extends Controller
 
     //     return response()->json($groupedSlots);
     // }
+    // public function addSlotsRange(Request $request)
+    // {
+    //     // Validate the incoming request
+    //     $validated = $request->validate([
+    //         'consultant_id' => 'required|integer|exists:gen_consultants,ConsultantID',
+    //         'start_date' => 'required|date',
+    //         'end_date' => 'required|date',
+    //         'interval_minutes' => 'required|integer|min:1',
+    //         'daily_slots' => 'required|array',
+    //         'daily_slots.*.date' => 'required|date',
+    //         'daily_slots.*.num_slots' => 'required|integer|min:1',
+    //     ]);
 
+    //     $consultantId = $validated['consultant_id'];
+    //     $startDate = Carbon::parse($validated['start_date']);
+    //     $endDate = Carbon::parse($validated['end_date']);
+    //     $intervalMinutes = $validated['interval_minutes'];
+    //     $dailySlots = $validated['daily_slots'];
 
+    //     // Ensure start date is before end date
+    //     if ($startDate->greaterThan($endDate)) {
+    //         return response()->json(['error' => 'Start date must be before end date.'], 400);
+    //     }
+
+    //     // Initialize an array to hold the generated slots
+    //     $slots = [];
+
+    //     // Loop through each entry in the daily slots array
+    //     foreach ($dailySlots as $dailySlot) {
+    //         $date = Carbon::parse($dailySlot['date']);
+    //         $numSlots = $dailySlot['num_slots']; // Total slots for this day
+
+    //         // Fetch shift details to determine start and end time
+    //         $shift = Shift::first(); // Adjust this logic based on your requirements
+    //         if (!$shift) {
+    //             return response()->json(['error' => 'No shift found for the consultant.'], 404);
+    //         }
+
+    //         // Log shift data for debugging
+    //         Log::info('Shift data:', ['shift' => $shift]);
+
+    //         // Validate and parse shift times
+    //         try {
+    //             $startTime = Carbon::createFromFormat('h:i A', $shift->StartTime . ' ' . $shift->StartTimeAMPM);
+    //             $endTime = Carbon::createFromFormat('h:i A', $shift->EndTime . ' ' . $shift->EndTimeAMPM);
+    //         } catch (\Exception $e) {
+    //             Log::error('Error parsing shift time:', ['error' => $e->getMessage()]);
+    //             return response()->json(['error' => 'Error parsing shift time.'], 500);
+    //         }
+
+    //         // Ensure the date is within the specified range
+    //         if ($date->lessThan($startDate) || $date->greaterThan($endDate)) {
+    //             return response()->json(['error' => 'Date must be within the specified date range.'], 400);
+    //         }
+
+    //         // Generate slots for the specified date
+    //         $currentTime = $startTime->copy(); // Start from the beginning of the shift
+    //         $slotsCreated = 0; // Counter for the number of slots created
+
+    //         while ($currentTime->lessThan($endTime) && $slotsCreated < $numSlots) {
+    //             // Generate the base SlotToken
+    //             $baseSlotToken = str_replace('-', '', $date->format('Y-m-d')) . $currentTime->format('Hi');
+    //             $slotToken = $baseSlotToken . str_pad($slotsCreated + 1, 2, '0', STR_PAD_LEFT); // Add padding for unique tokens
+
+    //             // Check for SlotToken uniqueness
+    //             $attempt = 1;
+    //             while (TimeSlot::where('SlotToken', $slotToken)->exists()) {
+    //                 // Modify the token if it exists (append attempt number)
+    //                 $slotToken = $baseSlotToken . '-' . $attempt;
+    //                 $attempt++;
+    //             }
+
+    //             // Prepare the slot data for insertion
+    //             $slots[] = [
+    //                 'ConsultantID' => $consultantId,
+    //                 'ConsultationDate' => $date->format('Y-m-d'),
+    //                 'SlotTime' => $currentTime->format('H:i:s'),
+    //                 'SlotToken' => $slotToken,
+    //                 'MaxSlots' => 1,
+    //                 'AvailableSlots' => 1,
+    //                 'isBooked' => 0,
+    //             ];
+
+    //             // Increment the counter and time for the next slot
+    //             $slotsCreated++;
+    //             $currentTime->addMinutes($intervalMinutes);
+    //         }
+    //     }
+
+    //     // Save slots in the database
+    //     TimeSlot::insert($slots);
+
+    //     return response()->json(['message' => 'Slots created successfully.', 'slots' => $slots], 201);
+    // }
 }
 
 // public function addSlotsRange(Request $request)

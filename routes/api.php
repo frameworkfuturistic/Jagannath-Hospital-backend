@@ -48,5 +48,5 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\API\V1'], f
     Route::post('payments/callback', [PaymentController::class, 'handlePaymentCallback']); // Handle payment callback
     Route::get('payments/{paymentId}', [PaymentController::class, 'getPaymentById']); // Get payment by ID
     Route::get('payments/history', [PaymentController::class, 'getPaymentHistory']); // Get payment history
-    Route::post('payment/callbak', [PaymentController::class, 'handlePaymentCallback']);
+
 });
