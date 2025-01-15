@@ -316,6 +316,151 @@ class PaymentController extends Controller
     }
 }
 
+    // public function handlePaymentCallback(Request $request)
+    // {
+    //     // Retrieve webhook payload and signature
+    //     $webhookBody = $request->getContent();
+    //     $webhookSignature = $request->header('X-Razorpay-Signature');
+
+    //     // Log the entire incoming request for debugging
+    //     Log::channel('payment')->info('Received Webhook Request:', [
+    //         'headers' => $request->headers->all(),
+    //         'body' => $webhookBody,
+    //         'signature' => $webhookSignature,
+    //     ]);
+
+    //     // Simulate Razorpay webhook signature verification (skip actual verification for local testing)
+    //     $isValidSignature = true;
+
+    //     if (!$isValidSignature) {
+    //         return response()->json(['message' => 'Invalid signature'], 400);
+    //     }
+
+    //     // Decode the webhook payload
+    //     $payload = json_decode($webhookBody, true);
+
+    //     // Log the payload for debugging purposes
+    //     Log::channel('payment')->info('Decoded Webhook Payload:', $payload);
+
+    //     // Extract payment details from the payload
+    //     $paymentId = $payload['payment_id'] ?? 'DUMMY_PAYMENT_ID';
+    //     $paymode = $payload['paymentmode'] ?? 'Online';
+    //     $amount = $payload['amount'] ?? 1000.00;
+    //     $mrNo = $payload['MRNo'] ?? null;
+    //     $patientName = $payload['patientname'] ?? 'Unknown';
+    //     $appointmentId = $payload['appointment_id'];
+
+    //     // If MRNo is not provided in the payload, generate one
+    //     if (!$mrNo) {
+    //         try {
+    //             $mrNo = $this->generateMRNo();
+    //             Log::channel('payment')->info('Generated MRNo: ' . $mrNo);
+    //         } catch (\Exception $e) {
+    //             return response()->json(['message' => 'Failed to generate MRNo: ' . $e->getMessage()], 500);
+    //         }
+    //     }
+
+    //     // Check if the MRNo exists in the database
+    //     $mrRecord = DB::table('mr_master')->where('MRNo', $mrNo)->first();
+
+    //     if (!$mrRecord) {
+    //         try {
+    //             Log::channel('payment')->info('Attempting to create MRNo: ' . $mrNo);
+    //             MrMaster::create([
+    //                 'MRNo' => $mrNo,
+    //                 'MRDate' => now(),
+    //                 'PatientName' => $patientName,
+    //             ]);
+    //             Log::channel('payment')->info('New MRNo record created successfully: ' . $mrNo);
+    //         } catch (\Exception $e) {
+    //             Log::channel('payment')->error('Error creating MRNo: ' . $e->getMessage());
+    //             return response()->json(['message' => 'Error creating MRNo: ' . $e->getMessage()], 500);
+    //         }
+    //     }
+
+    //     // Insert a new record into opd_registrations
+    //     try {
+    //         Log::channel('payment')->info('Attempting to create new opd_registrations for MRNo: ' . $mrNo);
+    //         $registrationId = DB::table('opd_registrations')->insertGetId([
+    //             'MRNo' => $mrNo,
+    //             'RegistrationDate' => now(),
+    //             'ConsultationDate' => now(),
+    //             'RegistrationFee' => 100,
+    //             'Amount' => $amount,
+    //             'PaymentMode' => $paymode,
+    //             'CreatedBy' => auth()->id() ?? 1,
+    //             'CreatedOn' => now(),
+    //         ]);
+    //         Log::channel('payment')->info('New record created in opd_registrations for MRNo: ' . $mrNo);
+
+    //         // Insert new record into opd_consultations
+    //         DB::table('opd_consultations')->insert([
+    //             'RegistrationID' => $registrationId,
+    //             'ConsultationDate' => now(),
+    //             'ConsultedAt' => now(),
+    //             'PatientName' => $patientName,
+    //             'CreatedBy' => auth()->id() ?? 1,
+    //             'CreatedOn' => now(),
+    //         ]);
+
+    //         Log::channel('payment')->info('New record created in opd_consultations for RegistrationID: ' . $registrationId);
+    //     } catch (\Exception $e) {
+    //         Log::channel('payment')->error('Error creating records in opd_registrations/opd_consultations: ' . $e->getMessage());
+    //         return response()->json(['message' => 'Error creating records: ' . $e->getMessage()], 500);
+    //     }
+
+    //     // Always insert a new payment record, no matter if it already exists
+    //     try {
+    //         DB::table('payments')->insert([
+    //             'payment_id' => $paymentId,
+    //             'appointment_id' => $appointmentId,
+    //             'amount' => $amount,
+    //             'status' => 'captured',
+    //             'TransactionID' => $payload['transaction_id'] ?? null,
+    //             'created_at' => now(),
+    //             'updated_at' => now(),
+    //         ]);
+    //         Log::channel('payment')->info('New payment record inserted successfully for PaymentID: ' . $paymentId);
+    //     } catch (\Exception $e) {
+    //         Log::channel('payment')->error('Error inserting payment record: ' . $e->getMessage());
+    //         return response()->json(['message' => 'Error inserting payment record: ' . $e->getMessage()], 500);
+    //     }
+
+    //     return response()->json(['message' => 'Payment callback processed successfully']);
+    // }
+
+    // private function generateMRNo()
+    // {
+    //     try {
+    //         // Retrieve the MR counter from the database
+    //         $mrParameter = DB::table('mr_parameter')->where('ID', 1)->first();
+
+    //         if (!$mrParameter) {
+    //             Log::error("MR Parameter not found. ID: 1");
+    //             throw new \Exception('MR Parameter not found.');
+    //         }
+
+    //         $mrCounter = $mrParameter->MRCounter ?? 0;
+
+    //         // Increment the counter
+    //         DB::table('mr_parameter')->where('ID', 1)->update(['MRCounter' => $mrCounter + 1]);
+
+    //         // Generate MRNo with year, month, and counter
+    //         $currentYear = now()->year % 100; // Last two digits of the year
+    //         $currentMonth = str_pad(now()->month, 2, '0', STR_PAD_LEFT); // Two-digit month
+    //         $mrNo = $currentYear . $currentMonth . str_pad($mrCounter, 5, '0', STR_PAD_LEFT);
+
+    //         // Append checksum
+    //         $checksum = array_sum(str_split($mrNo)) % 9;
+    //         $mrNo .= $checksum;
+
+    //         Log::info("Generated MRNo: " . $mrNo);
+    //         return $mrNo;
+    //     } catch (\Exception $e) {
+    //         Log::error("Failed to generate MRNo: " . $e->getMessage());
+    //         throw new \Exception('Failed to generate MRNo: ' . $e->getMessage());
+    //     }
+    // }
  // public function handlePaymentCallback(Request $request)
     // {
     //     // Retrieve webhook payload and signature

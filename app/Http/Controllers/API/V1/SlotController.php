@@ -57,6 +57,71 @@ class SlotController extends Controller
 
 
     // Method to add as a particular date slots for a doctor
+    // public function addSlotsDay(Request $request)
+    // {
+    //     // Validate the incoming request
+    //     $validated = $request->validate([
+    //         'consultant_id' => 'required|integer|exists:gen_consultants,ConsultantID',
+    //         'shift_id' => 'required|integer|exists:gen_shifts,ShiftID',
+    //         'date' => 'required|date',
+    //         'num_slots' => 'integer|min:1', // Allow num_slots to be optional
+    //     ]);
+
+    //     $consultantId = $validated['consultant_id'];
+    //     $shiftId = $validated['shift_id'];
+    //     $date = $validated['date'];
+    //     $numSlots = $validated['num_slots'] ?? 50; // Default to 50 slots if not provided
+
+    //     // Fetch shift details to determine start and end time
+    //     $shift = Shift::find($shiftId);
+
+    //     if (!$shift) {
+    //         return response()->json(['error' => 'Shift not found.'], 404);
+    //     }
+
+    //     // Calculate start and end time
+    //     $startTime = Carbon::createFromFormat('h:i A', $shift->StartTime . ' ' . $shift->StartTimeAMPM);
+    //     $endTime = Carbon::createFromFormat('h:i A', $shift->EndTime . ' ' . $shift->EndTimeAMPM);
+
+    //     // Calculate the interval between slots
+    //     $slotInterval = 8; // You can customize this based on requirements (e.g., 30-minute intervals)
+
+    //     // Generate slots
+    //     $slots = [];
+    //     for ($i = 0; $i < $numSlots; $i++) {
+    //         $slotTime = $startTime->copy()->addMinutes($slotInterval * $i); // Create slots at intervals
+    //         if ($slotTime->greaterThan($endTime)) {
+    //             break; // Stop creating slots if past end time
+    //         }
+
+    //         $slotToken = str_replace('-', '', $date) . $slotTime->format('Hi') . str_pad($i + 1, 2, '0', STR_PAD_LEFT); // Unique SlotToken
+
+    //         // Ensure SlotToken is unique
+    //         while (TimeSlot::where('SlotToken', $slotToken)->exists()) {
+    //             $slotToken = str_replace('-', '', $date) . $slotTime->format('Hi') . str_pad(++$i, 2, '0', STR_PAD_LEFT);
+    //         }
+
+    //         $slots[] = [
+    //             'ConsultantID' => $consultantId,
+    //             'ShiftID' => $shiftId,
+    //             'ConsultationDate' => $date,
+    //             'SlotTime' => $slotTime->format('H:i'),
+    //             'SlotToken' => $slotToken,
+    //             'MaxSlots' => 1, // Set max slots per time slot (customize if needed)
+    //             'AvailableSlots' => 1,
+    //             'isBooked' => 0, // Slot initially not booked
+    //         ];
+    //     }
+
+    //     // Save slots in the database
+    //     foreach ($slots as $slot) {
+    //         TimeSlot::create($slot);
+    //     }
+
+    //     return response()->json(['message' => 'Slots created successfully.', 'slots' => $slots], 201);
+    // }
+
+
     public function addSlotsDay(Request $request)
     {
         // Validate the incoming request
@@ -64,17 +129,18 @@ class SlotController extends Controller
             'consultant_id' => 'required|integer|exists:gen_consultants,ConsultantID',
             'shift_id' => 'required|integer|exists:gen_shifts,ShiftID',
             'date' => 'required|date',
-            'num_slots' => 'integer|min:1', // Allow num_slots to be optional
+            'num_slots' => 'integer|min:1|max:100', // Allow num_slots to be optional
+            'slot_interval' => 'integer|min:1', // Slot interval in minutes (default 30)
         ]);
 
         $consultantId = $validated['consultant_id'];
         $shiftId = $validated['shift_id'];
         $date = $validated['date'];
-        $numSlots = $validated['num_slots'] ?? 50; // Default to 50 slots if not provided
+        $numSlots = $validated['num_slots'] ?? 5; // Default to 5 slots if not provided
+        $slotInterval = $validated['slot_interval'] ?? 30; // Default to 30 minutes if not provided
 
         // Fetch shift details to determine start and end time
         $shift = Shift::find($shiftId);
-
         if (!$shift) {
             return response()->json(['error' => 'Shift not found.'], 404);
         }
@@ -83,24 +149,48 @@ class SlotController extends Controller
         $startTime = Carbon::createFromFormat('h:i A', $shift->StartTime . ' ' . $shift->StartTimeAMPM);
         $endTime = Carbon::createFromFormat('h:i A', $shift->EndTime . ' ' . $shift->EndTimeAMPM);
 
-        // Calculate the interval between slots
-        $slotInterval = 8; // You can customize this based on requirements (e.g., 30-minute intervals)
+        // Log shift details for debugging
+        Log::debug("Shift Start Time: " . $startTime->toDateTimeString());
+        Log::debug("Shift End Time: " . $endTime->toDateTimeString());
+
+        // Calculate the total available minutes for the shift
+        $availableMinutes = $startTime->diffInMinutes($endTime);
+        Log::debug("Available minutes for the shift: $availableMinutes");
+
+        // Check if there is enough time to create the requested slots
+        if ($availableMinutes < ($numSlots * $slotInterval)) {
+            return response()->json(['error' => 'Not enough time in the shift to create the requested number of slots.'], 400);
+        }
 
         // Generate slots
         $slots = [];
+        $existingTokens = TimeSlot::where('ConsultantID', $consultantId)
+            ->where('ConsultationDate', $date)
+            ->pluck('SlotToken')
+            ->toArray(); // Fetch existing tokens to avoid conflict
+
         for ($i = 0; $i < $numSlots; $i++) {
             $slotTime = $startTime->copy()->addMinutes($slotInterval * $i); // Create slots at intervals
+
+            // Debug log for slot time
+            Log::debug("Generated Slot Time: " . $slotTime->toDateTimeString());
+
+            // Check if slot time exceeds the end time
             if ($slotTime->greaterThan($endTime)) {
+                Log::debug("End time reached, breaking the loop.");
                 break; // Stop creating slots if past end time
             }
 
-            $slotToken = str_replace('-', '', $date) . $slotTime->format('Hi') . str_pad($i + 1, 2, '0', STR_PAD_LEFT); // Unique SlotToken
+            // Generate a unique SlotToken
+            $slotToken = str_replace('-', '', $date) . $slotTime->format('Hi') . str_pad($i + 1, 2, '0', STR_PAD_LEFT);
 
             // Ensure SlotToken is unique
-            while (TimeSlot::where('SlotToken', $slotToken)->exists()) {
-                $slotToken = str_replace('-', '', $date) . $slotTime->format('Hi') . str_pad(++$i, 2, '0', STR_PAD_LEFT);
+            while (in_array($slotToken, $existingTokens)) {
+                // Generate a new SlotToken by adding an incremented value to it
+                $slotToken = str_replace('-', '', $date) . $slotTime->format('Hi') . str_pad(rand(1, 99), 2, '0', STR_PAD_LEFT);
             }
 
+            // Add new slot data to the slots array
             $slots[] = [
                 'ConsultantID' => $consultantId,
                 'ShiftID' => $shiftId,
@@ -111,15 +201,24 @@ class SlotController extends Controller
                 'AvailableSlots' => 1,
                 'isBooked' => 0, // Slot initially not booked
             ];
+
+            // Add the new slot token to the existingTokens array to prevent future conflicts
+            $existingTokens[] = $slotToken;
         }
 
         // Save slots in the database
-        foreach ($slots as $slot) {
-            TimeSlot::create($slot);
+        try {
+            foreach ($slots as $slot) {
+                TimeSlot::create($slot);
+            }
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to create slots: ' . $e->getMessage()], 500);
         }
 
         return response()->json(['message' => 'Slots created successfully.', 'slots' => $slots], 201);
     }
+
+
 
 
     public function addSlotsRange(Request $request)
